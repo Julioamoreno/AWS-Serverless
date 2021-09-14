@@ -1,0 +1,25 @@
+service: layers-nodejs-modules
+
+frameworkVersion: '2'
+
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - http:
+          path: 'hello'
+          method: 'get'
+    layers:
+      - {Ref: NodeModulesLambdaLayer}
+
+layers:
+  NodeModules:
+    path: layer
+    compatibleRuntimes:
+      - nodejs14.x
