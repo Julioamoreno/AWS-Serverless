@@ -1,0 +1,75 @@
+service: tooling-s3-sqs
+
+frameworkVersion: '2'
+
+
+provider:
+  name: aws
+  stage: ${opt:stage, "dev"}
+  runtime: nodejs12.x
+  lambdaHashingVersion: 20201221
+  environment:
+    BUCKET_NAME: arquivos-007-ja
+    SQS_QUEUE: file-handler-queue
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+        - sqs:GetQueueUrl
+        - sqs:CreateQueue
+        - sqs:ReceiveMessage
+      Resource: ${self:custom.sqsArn}
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}/*
+        - arn:aws:s3:::${self:provider.environment.BUCKET_NAME}
+
+
+plugins:
+  - serverless-localstack
+  - serverless-offline
+
+custom:
+  sqsArn:
+    Fn::GetAtt: 
+      - SQSQueue
+      - Arn
+  localstack:
+    stages:
+      - local
+      # desabilita o localstack quando fizer deploy
+    autostart: false
+  serveless-offline: 
+    useChildProcesses: true
+
+package:
+  excludeDevDependencies: true
+  individually: true
+
+functions:
+  s3listener:
+    handler: src/index.s3listener
+    events:
+      - s3:
+          bucket: ${self:provider.environment.BUCKET_NAME}
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .csv
+          
+  sqslistener:
+    handler: src/index.sqslistener
+    events:
+      - sqs:
+          batchSize: 1
+          # maximumRetryAttempts: 1:
+          arn: ${self:custom.sqsArn}
+
+resources:
+  Resources:
+    SQSQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:provider.environment.SQS_QUEUE}
+        VisibilityTimeout: 60
